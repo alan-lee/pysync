@@ -13,7 +13,7 @@ def build_merkle_tree(directory):
     children = list()
 
     for file_path in files:
-        if os.path.isdir(file):
+        if os.path.isdir(file_path):
             node = build_merkle_tree(file_path)
             children.append(node)
         else:
@@ -21,24 +21,26 @@ def build_merkle_tree(directory):
             children.append(node)
 
     node_list = children
+    level = 1
     while True:
         if len(node_list) <= 3:
             tree = _create_dir_node(directory, node_list)
             break
         else:
-            node_list = _build_parent_node_list()
+            node_list = _build_parent_node_list(directory, level, node_list)
+            level += 1
 
     return tree
 
 
-def _build_parent_node_list(directory, children=list()):
+def _build_parent_node_list(directory, level, children):
     node_list = list()
     index = 0
 
     children.sort(key=lambda child_node: child_node.get_path())
     while index < len(children):
         if index % 2 != 0:
-            node = TreeNode(directory + '_' + (index + 1) % 2)
+            node = TreeNode(directory + '_' + level + '_' + (index + 1) % 2)
             node.add_child(children[index])
             node.add_child(children[index - 1])
 
