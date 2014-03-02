@@ -5,21 +5,38 @@ import os
 import getopt
 import atexit
 import logging
+import threading
+from hanlder import HandlerFactory, DirMonitorHandler
+from common import ThreadPool, Scheduler, Timer
+from monitor import Monitor
+from common import SocketServer
 
 LOG_FILE = '/var/log/pysync.log'
 PID_FILE = '/var/run/pysync_server.pid'
+CORE_THREAD_COUNT = 4
+MAX_THREAD_COUNT = 10
+DIR_MONITOR_INTERVAL = 1800
+SERVER_SOCKET_PORT = 7199
 
 
 class SyncServer:
     def __init__(self, daemon, directory, log_level = logging.ERROR):
         self._daemon = daemon
         self._directory = directory
+        self._handler_factory = HandlerFactory()
+        self._server_socket = None
+        self._is_shutdown = threading.Event()
         self._running = True
 
         self._logger = logging.getLogger()
         self._logger.setLevel(log_level)
         handler = logging.hanlders.RotatingFileHandler(LOG_FILE, maxBytes=4 * 1024 * 1024, backupCounts=10)
         self._logger.setHanlder(handler)
+
+        self._thread_pool = ThreadPool(CORE_THREAD_COUNT, MAX_THREAD_COUNT)
+        self._monitor = Monitor(directory)
+        self._scheduler = Scheduler(self._thread_pool)
+        self._socket_server = SocketServer(('0.0.0.0', SERVER_SOCKET_PORT), self._thread_pool, HanlderFactory())
 
     def _daemonize(self):
         try:
@@ -67,6 +84,7 @@ class SyncServer:
 
     def _exit(self):
         try:
+            # TODO: stop all the components
             os.remove(PID_FILE)
         except:
             pass
@@ -75,8 +93,10 @@ class SyncServer:
         if self._daemon:
             self._daemonize()
 
-        while self._running:
-            pass
+        self._monitor.start()
+        self._scheduler.add_timer(Timer(DIR_MONITOR_INTERVAL, DirMonitorHandler()))
+        self._scheduler.start()
+        self._socket_server.start()
 
 
 def usage():

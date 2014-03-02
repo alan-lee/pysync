@@ -44,3 +44,10 @@ class AtomicInteger:
         result = self._val - i
         self._lock.release()
         return result
+
+    def exchange(self, i):
+        self._lock.acquire()
+        result = self._val
+        self._val = i
+        self._lock.release()
+        return result
